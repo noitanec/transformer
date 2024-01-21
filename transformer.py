@@ -3,7 +3,7 @@ import math
 import torch
 import torch.nn as nn
 
-from utils import clones, subsequent_mask
+from utils import clones
 
 
 class LayerNorm(nn.Module):
@@ -36,6 +36,7 @@ class SublayerConnection(nn.Module):
     residual connection to the sublayer output.
     """
     def __init__(self, size, dropout):
+        super(SublayerConnection, self).__init__()
         self.norm = LayerNorm(size)
         self.dropout = nn.Dropout(dropout)
 
@@ -47,6 +48,7 @@ class EncoderLayer(nn.Module):
     """Encoder layer has two sub-layers; self-attention &
     feed forward(point-wise)"""
     def __init__(self, size, dropout, self_attn, feed_forward):
+        super(EncoderLayer, self).__init__()
         self.self_attn = self_attn
         self.ffn = feed_forward
         self.sublayers = clones(SublayerConnection(size, dropout), 2)
@@ -57,6 +59,7 @@ class EncoderLayer(nn.Module):
 
 class Decoder(nn.Module):
     def __init__(self, layer, N):
+        super(Decoder, self).__init__()
         self.layer = clones(layer, N)
         self.norm = LayerNorm(layer.shape)
 
@@ -92,6 +95,29 @@ def attention(q, k, v, mask=None, dropout=None):
     if dropout is not None:
         p_attn = dropout(p_attn)
     return torch.matmul(p_attn, v), p_attn
+
+
+class MultiHeadAttn(nn.Module):
+    def __init__(self, d_model, n_head):
+        super(MultiHeadAttn, self).__init__()
+        self.d_model = d_model
+        self.n_head = n_head
+        self.d_k = self.d_model // self.n_head
+        self.linears = clones(nn.Linear(d_model, d_model), 4)
+
+    def forward(self, q, k, v):
+        nbatches = q.size(0)
+        q, k, v = [
+            lin(x).view(nbatches,-1,self.n_head,self.d_k).transpose(1,2)
+            for lin, x in  zip(self.linears, (q,k,v))
+        ]
+        x, _ = attention(q, k, v)
+        x = (
+            x.transpose(1,2)
+            .contiguous()
+            .view(nbatches, -1, self.n_head*self.d_k)
+        )
+        return self.linears[-1](x)
 
 # d_k = 64
 # n = 10
