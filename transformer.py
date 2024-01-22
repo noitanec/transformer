@@ -98,26 +98,47 @@ def attention(q, k, v, mask=None, dropout=None):
 
 
 class MultiHeadAttn(nn.Module):
-    def __init__(self, d_model, n_head):
+    """Multi head attention block"""
+
+    def __init__(self, d_model, n_head, dropout):
         super(MultiHeadAttn, self).__init__()
         self.d_model = d_model
         self.n_head = n_head
         self.d_k = self.d_model // self.n_head
         self.linears = clones(nn.Linear(d_model, d_model), 4)
+        self.dropout = dropout
 
-    def forward(self, q, k, v):
+    def forward(self, q, k, v, mask=None):
+        # TODO: unsqueeze() the mask tensor
         nbatches = q.size(0)
         q, k, v = [
             lin(x).view(nbatches,-1,self.n_head,self.d_k).transpose(1,2)
             for lin, x in  zip(self.linears, (q,k,v))
         ]
-        x, _ = attention(q, k, v)
+        x, _ = attention(q, k, v, mask=mask, dropout=self.dropout)
         x = (
             x.transpose(1,2)
-            .contiguous()
+            .contiguous()     # .contiguous() is called as view() requires contiguous tensor & transpose() returns non-contiguous
             .view(nbatches, -1, self.n_head*self.d_k)
         )
+        del q
+        del k
+        del v
         return self.linears[-1](x)
+
+
+class  PositionwiseFeedForward(nn.Module):
+    
+    def __init__(self, d_model, d_ff, dropout):
+        self.d_model = d_model
+        self.d_ff = d_ff
+        self.dropout = nn.Dropout(p=dropout)
+        self.w1 = nn.Linear(d_model, d_ff)
+        self.w2 = nn.Linear(d_ff, d_model)
+
+    def forward(self, x):
+        return self.w2(self.dropout(nn.ReLU(self.w1(x))))
+
 
 # d_k = 64
 # n = 10
