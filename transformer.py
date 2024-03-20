@@ -128,7 +128,7 @@ class MultiHeadAttn(nn.Module):
 
 
 class  PositionwiseFeedForward(nn.Module):
-    
+
     def __init__(self, d_model, d_ff, dropout):
         self.d_model = d_model
         self.d_ff = d_ff
@@ -138,6 +138,18 @@ class  PositionwiseFeedForward(nn.Module):
 
     def forward(self, x):
         return self.w2(self.dropout(nn.ReLU(self.w1(x))))
+
+
+class Embeddings(nn.Module):
+
+    def __init__(self, vocab, d_model):
+        super(Embeddings, self).__init__()
+        self.lut = vocab
+        self.d_model = d_model
+
+    def forward(x):
+        return self.lut(x) * math.sqrt(self.d_model)
+
 
 
 # d_k = 64
